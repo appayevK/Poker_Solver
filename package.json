@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "build:equity": "node scripts/build-equity-table.js"
+    "build:equity": "node scripts/build-equity-table.js",
+    "bench": "node scripts/bench-evaluator.js"
   },
   "devDependencies": {
     "vite": "^5.4.0",
