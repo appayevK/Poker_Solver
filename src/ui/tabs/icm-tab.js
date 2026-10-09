@@ -1,9 +1,6 @@
 // ICM tab: stacks + payouts → $EV, plus a hero-vs-villain jam/call spot calculator.
-import presets from '../../../data/payouts/presets.json';
 import {
   icmEquity,
-  payoutsFromPercent,
-  checkPayouts,
   spotEV,
   icmRequiredEquity,
   chipRequiredEquity,
@@ -13,6 +10,7 @@ import { parseRange, rangeToString } from '../../engine/ranges.js';
 import { countCombos, combosForClass } from '../../engine/combos.js';
 import { runEquity } from '../../workers/client.js';
 import { openRangeDialog } from '../range-dialog.js';
+import { createPayoutsEditor, readPayouts } from '../payouts-editor.js';
 import { el, field, readNumber, pct, fmt, signed } from '../dom.js';
 import { load, save } from '../../storage/store.js';
 
@@ -49,20 +47,6 @@ const DEFAULT_STATE = {
     headValueFactor: '0',
   },
 };
-
-const presetLabel = (key, values) =>
-  `${key.replace(/_/g, ' ').replace(/\bsng\b/i, 'SNG').replace(/^\w/, (c) => c.toUpperCase())} (${values.length} paid)`;
-
-/** Parses '50, 30, 20' into numbers. */
-function parseList(text) {
-  const parts = text.split(/[\s,;]+/).filter(Boolean);
-  if (parts.length === 0) throw new Error('Enter at least one payout');
-  return parts.map((p) => {
-    const n = Number(p.replace(/[$%]/g, ''));
-    if (!Number.isFinite(n)) throw new Error(`"${p}" is not a number`);
-    return n;
-  });
-}
 
 const money = (x) => (Number.isFinite(x) ? `$${x.toFixed(2)}` : '–');
 
@@ -157,42 +141,13 @@ export function renderIcmTab(root) {
 
   // -- payouts ------------------------------------------------------------
 
-  const presetSelect = el('select', { 'aria-label': 'Payout preset' }, [
-    ...Object.entries(presets).map(([key, values]) => el('option', { value: key, text: presetLabel(key, values) })),
-    el('option', { value: 'custom', text: 'Custom' }),
-  ]);
-  presetSelect.value = state.preset in presets ? state.preset : 'custom';
-  const unitSelect = el('select', { 'aria-label': 'Payout unit' }, [
-    el('option', { value: '%', text: '% of pool' }),
-    el('option', { value: '$', text: '$ amounts' }),
-  ]);
-  unitSelect.value = state.unit;
-  const poolInput = el('input', { type: 'number', inputMode: 'decimal', min: 0, step: 'any', value: state.prizePool });
-  const payoutInput = el('input', { value: state.payoutText, spellcheck: false, placeholder: '50, 30, 20' });
-  const payoutMsg = el('div', { class: 'icm-msg', role: 'alert' });
-
-  presetSelect.addEventListener('change', () => {
-    state.preset = presetSelect.value;
-    if (presetSelect.value !== 'custom') {
-      state.payoutText = presets[presetSelect.value].join(', ');
-      state.unit = '%';
-      payoutInput.value = state.payoutText;
-      unitSelect.value = '%';
-    }
-    changed();
-  });
-  unitSelect.addEventListener('change', () => {
-    state.unit = unitSelect.value;
-    changed();
-  });
-  poolInput.addEventListener('input', () => {
-    state.prizePool = poolInput.value;
-    changed();
-  });
-  payoutInput.addEventListener('input', () => {
-    state.payoutText = payoutInput.value;
-    state.preset = 'custom';
-    presetSelect.value = 'custom';
+  // The editor works on its own state object; mirror it into the persisted fields.
+  const payoutState = { preset: state.preset, text: state.payoutText, unit: state.unit, pool: state.prizePool };
+  const payoutsEditor = createPayoutsEditor(payoutState, () => {
+    state.preset = payoutState.preset;
+    state.payoutText = payoutState.text;
+    state.unit = payoutState.unit;
+    state.prizePool = payoutState.pool;
     changed();
   });
 
@@ -208,20 +163,7 @@ export function renderIcmTab(root) {
       if (p.stack === '' || !Number.isFinite(n) || n < 0) throw new Error(`Enter a stack of 0 or more for ${p.name || `player ${i + 1}`}`);
       return n;
     });
-    const values = parseList(state.payoutText);
-    const pool = readNumber(poolInput);
-    let payouts;
-    let prizePool;
-    if (state.unit === '%') {
-      if (pool === null || pool <= 0) throw new Error('Enter the prize pool');
-      payouts = payoutsFromPercent(values, pool);
-      prizePool = pool;
-    } else {
-      payouts = checkPayouts(values);
-      const total = payouts.reduce((a, b) => a + b, 0);
-      prizePool = pool ?? total;
-      if (total > prizePool + 1e-6) throw new Error(`Payouts add up to ${money(total)}, more than the prize pool`);
-    }
+    const { payouts, prizePool } = readPayouts(payoutState);
     const bounties = state.players.map((p) => {
       const n = Number(p.bounty);
       return p.bounty === '' || !Number.isFinite(n) || n < 0 ? 0 : n;
@@ -565,9 +507,7 @@ export function renderIcmTab(root) {
       el('div', { class: 'panel' }, [el('h3', { text: 'Players' }), playersEl, addBtn]),
       el('div', { class: 'panel' }, [
         el('h3', { text: 'Payouts' }),
-        el('div', { class: 'icm-row' }, [field('Preset', presetSelect), field('Unit', unitSelect), field('Prize pool $', poolInput)]),
-        el('div', { class: 'icm-row' }, [el('label', { class: 'field grow' }, [el('span', { text: 'Payouts, 1st first' }), payoutInput])]),
-        payoutMsg,
+        payoutsEditor.element,
       ]),
       el('div', { class: 'panel wide' }, [el('h3', { text: 'Results' }), resultsMsg, resultsEl]),
       el('div', { class: 'panel wide' }, [
@@ -598,12 +538,12 @@ export function renderIcmTab(root) {
     try {
       m = model();
       resultsMsg.textContent = '';
-      payoutMsg.textContent = '';
+      payoutsEditor.setMessage('');
       updateResults(m);
     } catch (err) {
       const isPayout = /payout|prize pool/i.test(err.message);
-      (isPayout ? payoutMsg : resultsMsg).textContent = err.message;
-      (isPayout ? resultsMsg : payoutMsg).textContent = '';
+      resultsMsg.textContent = isPayout ? '' : err.message;
+      payoutsEditor.setMessage(isPayout ? err.message : '');
       resultsEl.replaceChildren();
     }
     updateSpot(m);
