@@ -8,20 +8,9 @@
 
 import { handClasses, parseRange, rangeToString, rangeCombos, setClassWeight, toRange } from '../engine/ranges.js';
 import { comboWeights, CLASS_COMBOS } from '../engine/combos.js';
+import { el } from './dom.js';
 
 const CLASSES = handClasses();
-
-function el(tag, props = {}, children = []) {
-  const node = document.createElement(tag);
-  for (const [k, v] of Object.entries(props)) {
-    if (k === 'class') node.className = v;
-    else if (k === 'text') node.textContent = v;
-    else if (k in node) node[k] = v;
-    else node.setAttribute(k, v);
-  }
-  for (const c of children) node.append(c);
-  return node;
-}
 
 function formatCombos(n) {
   return Number.isInteger(n) ? String(n) : n.toFixed(1);

@@ -1,7 +1,9 @@
 // Equity calculator: 2-6 players (hands or ranges), optional board and dead cards.
 import { parseCards } from '../../engine/cards.js';
 import { parseRange, rangeToString, rangeCombos } from '../../engine/ranges.js';
-import { createRangeGrid } from '../range-grid.js';
+import { openRangeDialog } from '../range-dialog.js';
+import { createDecisionPanel } from '../decision-panel.js';
+import { el, pct } from '../dom.js';
 import { runEquity, cancelEquity } from '../../workers/client.js';
 import { load, save } from '../../storage/store.js';
 
@@ -15,20 +17,6 @@ const DEFAULT_STATE = {
   method: 'auto',
   iterations: 200000,
 };
-
-function el(tag, props = {}, children = []) {
-  const node = document.createElement(tag);
-  for (const [k, v] of Object.entries(props)) {
-    if (k === 'class') node.className = v;
-    else if (k === 'text') node.textContent = v;
-    else if (k in node) node[k] = v;
-    else node.setAttribute(k, v);
-  }
-  for (const c of children) node.append(c);
-  return node;
-}
-
-const pct = (x, digits = 2) => `${(x * 100).toFixed(digits)}%`;
 
 /** Classifies a player input: a 2-card hand, a range, empty, or an error. */
 export function classifyInput(text) {
@@ -111,7 +99,8 @@ export function renderEquityTab(root) {
     ]),
     status,
   ]);
-  root.append(section);
+  const decision = createDecisionPanel();
+  root.append(section, decision.element);
 
   // -- player rows ------------------------------------------------------------
 
@@ -194,39 +183,24 @@ export function renderEquityTab(root) {
 
   // -- range grid dialog ------------------------------------------------------
 
-  const dialog = el('dialog', { class: 'eq-dialog' });
-  root.append(dialog);
-
-  function openGrid(i) {
+  async function openGrid(i) {
     const info = classifyInput(state.players[i]);
     let initial = new Map();
     if (info.kind === 'range') initial = info.range;
     else if (info.kind === 'hand') {
       try {
-        initial = parseRange(state.players[i].replace(/\s+/g, ''));
+        initial = parseRange(state.players[i].replace(/s+/g, ''));
       } catch {
         initial = new Map();
       }
     }
-    const grid = createRangeGrid({ range: initial });
-    const done = el('button', { type: 'button', class: 'primary', text: 'Use range' });
-    const cancel = el('button', { type: 'button', text: 'Cancel' });
-    dialog.replaceChildren(
-      el('h3', { text: `Range for P${i + 1}` }),
-      grid,
-      el('div', { class: 'eq-dialog-actions' }, [cancel, done]),
-    );
-    cancel.addEventListener('click', () => dialog.close());
-    done.addEventListener('click', () => {
-      state.players[i] = rangeToString(grid.getRange());
-      rows[i].input.value = state.players[i];
-      updateRowInfo(rows[i]);
-      markStale();
-      persist();
-      dialog.close();
-    });
-    if (typeof dialog.showModal === 'function') dialog.showModal();
-    else dialog.setAttribute('open', '');
+    const range = await openRangeDialog({ title: `Range for P${i + 1}`, range: initial });
+    if (!range || !rows[i]) return;
+    state.players[i] = rangeToString(range);
+    rows[i].input.value = state.players[i];
+    updateRowInfo(rows[i]);
+    markStale();
+    persist();
   }
 
   // -- board, dead cards, options ------------------------------------------
@@ -327,6 +301,7 @@ export function renderEquityTab(root) {
       });
       showResults(result);
       status.textContent = describe(result);
+      decision.setEquityResult(result);
     } catch (err) {
       status.className = err.name === 'AbortError' ? 'eq-status' : 'eq-status error';
       status.textContent = err.message;
