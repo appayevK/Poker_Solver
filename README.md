@@ -51,7 +51,7 @@ npm run build:equity  # regenerate data/preflop-equity-169.json (~70 s)
 
 1. ~~Engine, range grid, equity calculator~~ **Done** (see phase 1 notes below)
 2. ~~EV calculator, ICM, PKO conversion~~ **Done** (see phase 2 notes below)
-3. Nash push/fold (HU → multi-player → ICM / bounty modes)
+3. ~~Nash push/fold (HU → multi-player → ICM / bounty modes)~~ **Done** (see phase 3 notes below)
 4. Hand review (manual entry → GG parser)
 5. Preflop charts and trainer, leak flags, batch stats
 
@@ -77,3 +77,17 @@ See [docs/PLAN.md](docs/PLAN.md) for details.
 - **Spot $EV**: `spotEV` builds each outcome as a new stack vector and scores it with ICM: hero folds, villain folds, called and win, called and lose, split. Blinds and antes are dead money. When hero folds, the pot goes to villain, as when it is folded to the big blind. A busted hero is paid the place they finish in.
 - **Required equity**: `icmRequiredEquity` and `chipRequiredEquity` solve the linear $EV (or chip EV) equation for the break-even equity directly. Risk premium = ICM minus chip-EV required equity.
 - **PKO + ICM**: busting villain adds `bounty / 2 × (1 + headValueFactor)` to hero's $EV as cash. When a covering villain busts hero, hero's own bounty goes to villain. That money was never hero's, so only the ICM part changes.
+
+### Phase 3 notes
+
+- **Model** (`src/nash/pushfold.js`): push/fold only. A player folds or goes all-in, and facing an all-in calls or folds; there are no limps and no smaller raises. Stacks and blinds are in big blinds, with blinds 0.5 / 1 by default. Antes can be per player or a single big-blind ante; antes are dead money and blinds are live. Seats are in action order (first to act … SB, BB). Strategies are a jam or call frequency for each of the 169 hand classes.
+- **Card removal** (`src/nash/card-removal.js`): a 169×169 matrix counts the compatible combo pairs between two classes (AA vs KK = 36, AA vs AKs = 12). Villain's classes are weighted by that count against hero's hand. The chance that each player behind calls is computed against the jammer's hand. Cards held by players who folded are ignored, which is the standard simplification.
+- **One caller** (`maxCallers = 1`): once someone calls, everyone behind folds, so every all-in is heads-up. The decision nodes are "open-jam when folded to" for every seat but the BB, and "call vs a jam from seat X" for every seat behind X. 3-way all-ins (`maxCallers = 2`, the optional stretch) are not implemented; asking for them throws a clear error.
+- **Terminal values**: a hand ends in one of these outcomes: folded round to the BB, a steal by the jammer, or jammer vs one caller where the jammer wins or loses. Each outcome's final stack vector is valued once per player:
+  - **chip EV**: chips won or lost, in bb.
+  - **ICM**: `icmEquity` of the final stacks in $. A busted player gets the payout for the place they finish in, and in heads-up mode the players outside the hand can be included.
+  - **PKO**: the ICM value plus `bountyDollarValue` for a player who busts someone they cover. Without payouts it is chip EV plus `bountyChipValue`, at a $/bb rate from the starting bounty and starting stack.
+  A class's EV for an action is then a sum of these values weighted by preflop-table equities and the card-removal matrix, so each iteration costs O(nodes × 169²). A split pot counts as half a win and half a loss: exact in chip EV, and a close approximation under ICM.
+- **Solver** (`src/nash/fictitious-play.js`): fictitious play. Each iteration plays the best response at every node, then moves the average strategy towards it. The step is 2/(t+2), so later responses carry linearly more weight. This reaches 1e-4 bb in a few hundred iterations, where classic 1/t averaging needs tens of thousands; `'1/t'` and a fixed step remain available as options. Exploitability is the best-response gain per player, and solving stops below 2e-4 bb (or the same fraction of the prize pool in ICM). Displayed ranges round hands to fully played or folded when their EV gap is clear of zero; the raw frequencies stay in `nodes`.
+- **Solve times** (Node 24, Ryzen 9 8940HX laptop): heads-up at 10 bb takes about 0.1 s and matches published Nash (SB jams 58%, BB calls 37%). 3-handed at 10 bb takes about 0.1 s, 6-handed at 15 bb about 0.4 s, and 9-handed at 15 bb about 1.4 s. In the browser, solves run in `src/workers/nash.worker.js` behind `solveNash()` (`src/workers/nash-client.js`), with progress and cancel. Solutions are cached in localStorage by a hash of the parameters (the 10 most recent), so a solved spot reopens instantly.
+- **`nashAction(solution, { seat, node, handClass })`** returns the Nash action, the jam or call frequency and the EV gap. The Nash tab's "Check my hand" uses it, and the hand-review phase will compare real decisions with it.
