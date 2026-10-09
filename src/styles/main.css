@@ -52,3 +52,224 @@ body {
 }
 
 main { padding: 16px; }
+
+/* ---------- shared ---------- */
+
+:root {
+  --surface: #ffffff;
+  --danger: #b3261e;
+  --rg-off-pair: #dcdfdb;
+  --rg-off-suited: #e5e8e4;
+  --rg-off-offsuit: #ededea;
+  --rg-on: var(--accent);
+  --rg-sel: #d98e04;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: #1d201f;
+    --danger: #f2867d;
+    --rg-off-pair: #2f3331;
+    --rg-off-suited: #282c2a;
+    --rg-off-offsuit: #222624;
+    --rg-sel: #f0b43c;
+  }
+}
+
+h2 { margin: 0 0 8px; font-size: 20px; }
+.muted { color: var(--muted); margin: 0 0 16px; }
+
+button, input, select, textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--muted); }
+button:disabled { opacity: 0.5; cursor: default; }
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+input, select, textarea {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  min-width: 0;
+}
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.invalid { border-color: var(--danger); }
+
+/* ---------- range grid ---------- */
+
+.range-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 560px;
+}
+
+.rg-cells {
+  display: grid;
+  grid-template-columns: repeat(13, minmax(0, 1fr));
+  gap: 2px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.rg-cell {
+  --w: 0;
+  --off: var(--rg-off-offsuit);
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  font-size: clamp(8px, 2.5vw, 13px);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  overflow: hidden;
+  cursor: pointer;
+  background: linear-gradient(to top, var(--rg-on) calc(var(--w) * 100%), var(--off) 0);
+}
+.rg-cell.pair { --off: var(--rg-off-pair); font-weight: 600; }
+.rg-cell.suited { --off: var(--rg-off-suited); }
+.rg-cell.on { text-shadow: 0 0 3px var(--off), 0 0 1px var(--off); }
+.rg-cell.dark { color: #fff; text-shadow: 0 0 3px rgb(0 0 0 / 0.6); }
+.rg-cell.sel { box-shadow: inset 0 0 0 2px var(--rg-sel); }
+.readonly .rg-cell { cursor: default; }
+
+.rg-stats { color: var(--muted); font-size: 14px; }
+
+.rg-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.rg-slider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 150px;
+}
+.rg-slider input { flex: 1; width: 0; min-width: 60px; padding: 0; accent-color: var(--accent); }
+.rg-weight { min-width: 4ch; text-align: right; font-variant-numeric: tabular-nums; }
+
+.rg-text {
+  width: 100%;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 14px;
+}
+.rg-error { color: var(--danger); font-size: 13px; min-height: 1em; }
+
+/* ---------- equity tab ---------- */
+
+.equity-tab { max-width: 900px; }
+
+.eq-rows { display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; }
+
+.eq-row {
+  display: grid;
+  grid-template-columns: 2.5em minmax(0, 1fr) auto auto minmax(150px, 220px);
+  grid-template-areas:
+    'label input grid remove result'
+    '.     info  info info   result';
+  align-items: center;
+  gap: 4px 8px;
+  padding: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.eq-label { grid-area: label; font-weight: 600; color: var(--muted); }
+.eq-input { grid-area: input; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.eq-grid-btn { grid-area: grid; }
+.eq-remove { grid-area: remove; padding: 6px 10px; }
+.eq-info { grid-area: info; font-size: 13px; color: var(--muted); }
+.eq-info.error { color: var(--danger); }
+
+.eq-result {
+  grid-area: result;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-variant-numeric: tabular-nums;
+}
+.eq-result strong { font-size: 18px; }
+.eq-result small { color: var(--muted); }
+.eq-result.stale { opacity: 0.45; }
+.eq-bar { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
+.eq-bar span { display: block; height: 100%; background: var(--accent); }
+
+.eq-fields, .eq-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-top: 16px;
+}
+.eq-fields label, .eq-actions label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.eq-fields input { width: 12em; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--fg); }
+.eq-actions input { width: 8em; color: var(--fg); }
+.eq-actions select { color: var(--fg); }
+.eq-msg { color: var(--danger); min-height: 1em; font-size: 12px; }
+
+.eq-status { margin-top: 16px; color: var(--muted); }
+.eq-status.error { color: var(--danger); }
+
+.eq-dialog {
+  width: min(600px, calc(100vw - 32px));
+  max-width: calc(100vw - 16px);
+  max-height: calc(100dvh - 32px);
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--fg);
+}
+.eq-dialog::backdrop { background: rgb(0 0 0 / 0.45); }
+.eq-dialog h3 { margin: 0 0 12px; font-size: 16px; }
+.eq-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+
+@media (max-width: 640px) {
+  main { padding: 12px; }
+  .app-header { flex-wrap: wrap; gap: 8px; }
+  .eq-row {
+    grid-template-columns: 2em minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      'label input  grid remove'
+      '.     info   info info'
+      '.     result result result';
+  }
+  .eq-fields input { width: 100%; }
+  .eq-fields label { flex: 1 1 140px; }
+  .eq-actions label { flex: 1 1 100px; }
+  .eq-actions input, .eq-actions select { width: 100%; }
+  .eq-dialog { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); padding: 10px; }
+}
+
+/* keep the whole dialog (grid + buttons) on screen on short viewports */
+.eq-dialog .rg-cells { width: min(100%, calc(100dvh - 330px)); min-width: min(100%, 260px); margin: 0 auto; }
