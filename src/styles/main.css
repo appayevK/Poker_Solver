@@ -1,0 +1,54 @@
+:root {
+  --bg: #f7f7f5;
+  --fg: #1c1c1c;
+  --muted: #6b6b6b;
+  --accent: #1f6f5c;
+  --border: #dcdcd6;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #151716;
+    --fg: #ecece8;
+    --muted: #9a9a94;
+    --accent: #4fb89c;
+    --border: #2c2f2d;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.app-header h1 { font-size: 18px; margin: 0; }
+
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+
+.tabs button {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--muted);
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.tabs button.active {
+  color: var(--fg);
+  border-color: var(--border);
+}
+
+main { padding: 16px; }

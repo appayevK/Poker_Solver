@@ -1,0 +1,13 @@
+{
+  "name": "6-max 100bb baseline",
+  "notes": "Placeholder - fill with baseline ranges or your own charts",
+  "spots": {
+    "UTG_RFI": "",
+    "HJ_RFI": "",
+    "CO_RFI": "",
+    "BTN_RFI": "",
+    "SB_RFI": "",
+    "BB_vs_BTN_defend": "",
+    "BTN_vs_CO_3bet": ""
+  }
+}
