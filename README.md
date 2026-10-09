@@ -52,8 +52,8 @@ npm run build:equity  # regenerate data/preflop-equity-169.json (~70 s)
 1. ~~Engine, range grid, equity calculator~~ **Done** (see phase 1 notes below)
 2. ~~EV calculator, ICM, PKO conversion~~ **Done** (see phase 2 notes below)
 3. ~~Nash push/fold (HU → multi-player → ICM / bounty modes)~~ **Done** (see phase 3 notes below)
-4. Hand review (manual entry → GG parser)
-5. Preflop charts and trainer, leak flags, batch stats
+4. Hand review (manual entry → GG parser) — **pending**: waiting for real GGPoker exports in `tests/fixtures/hand-histories/`
+5. ~~Preflop charts and trainer~~ **Done** (see phase 5 notes below); leak flags and batch stats come with hand review (phase 4)
 
 See [docs/PLAN.md](docs/PLAN.md) for details.
 
@@ -91,3 +91,36 @@ See [docs/PLAN.md](docs/PLAN.md) for details.
 - **Solver** (`src/nash/fictitious-play.js`): fictitious play. Each iteration plays the best response at every node, then moves the average strategy towards it. The step is 2/(t+2), so later responses carry linearly more weight. This reaches 1e-4 bb in a few hundred iterations, where classic 1/t averaging needs tens of thousands; `'1/t'` and a fixed step remain available as options. Exploitability is the best-response gain per player, and solving stops below 2e-4 bb (or the same fraction of the prize pool in ICM). Displayed ranges round hands to fully played or folded when their EV gap is clear of zero; the raw frequencies stay in `nodes`.
 - **Solve times** (Node 24, Ryzen 9 8940HX laptop): heads-up at 10 bb takes about 0.1 s and matches published Nash (SB jams 58%, BB calls 37%). 3-handed at 10 bb takes about 0.1 s, 6-handed at 15 bb about 0.4 s, and 9-handed at 15 bb about 1.4 s. In the browser, solves run in `src/workers/nash.worker.js` behind `solveNash()` (`src/workers/nash-client.js`), with progress and cancel. Solutions are cached in localStorage by a hash of the parameters (the 10 most recent), so a solved spot reopens instantly.
 - **`nashAction(solution, { seat, node, handClass })`** returns the Nash action, the jam or call frequency and the EV gap. The Nash tab's "Check my hand" uses it, and the hand-review phase will compare real decisions with it.
+
+### Phase 5 notes
+
+- **Chart format** (`src/preflop/charts.js`): a chart is `{ id, name, notes, stack: 100, players: 6, sizes, spots }`.
+  - `sizes` are the default raise sizes: open 2.5bb (SB 3bb); 3-bet 3x the open in position and 4x out of position; 4-bet 2.2x the 3-bet.
+  - `spots` are keyed by spot id, with positions in 6-max action order (UTG, HJ, CO, BTN, SB, BB):
+    - `RFI:CO`: CO first in;
+    - `vsOpen:BB:BTN`: BB facing a BTN open;
+    - `vs3bet:CO:BTN`: CO opened and the BTN 3-bet.
+  - Each spot maps actions to range strings, `{ raise, call, allin? }`, in the usual notation with optional weights for mixed hands (`A5s:0.5`). Fold is whatever is left over.
+  - `validateChart` blocks charts whose ranges don't parse, whose frequencies add up to more than 1 for a hand, or whose spot ids are malformed or inconsistent with the positions.
+  - `chartWarnings` reports, without blocking a save, an opener continuing vs a 3-bet with hands it doesn't open.
+  - The built-in baseline is read-only. Duplicated, imported or edited charts are saved in localStorage, and charts import and export as JSON.
+- **Baseline** (`data/charts/cash-6max-100bb.json`): an approximate study baseline written from general poker knowledge. It is **not solver output** and not copied from any commercial chart.
+  - It covers RFI for every position (UTG 16%, HJ 20%, CO 28%, BTN 47%, SB 40% raise-or-fold), every "vs open" spot, and every "vs 3-bet" spot.
+  - The blinds are a little tighter than a no-rake baseline because of rake at low stakes; the SB is 3-bet-or-fold.
+  - Replace any spot with your own ranges.
+- **Ranges tab**:
+  - a chart picker with duplicate, rename, delete, import and export;
+  - a spot picker by position;
+  - a multi-action grid (raise / call / all-in / fold, with mixed cells split by frequency) showing the % of hands, combos and notation per action;
+  - an edit mode that paints an action at a frequency, or takes typed notation;
+  - compare with another chart;
+  - checks:
+    - defence vs MDF, with a note that preflop MDF is only a rough guide;
+    - Monte Carlo equity of the continuing range vs the opener;
+    - the fold frequency a 3-bet or 4-bet bluff needs vs how often the chart folds;
+    - the card-removal effect of blocker hands such as A5s.
+- **Trainer** (`src/preflop/trainer.js`):
+  - **Dealing:** hands are dealt by combo (a pair 6/1326, suited 4/1326, offsuit 12/1326). Facing a 3-bet, hands are also weighted by how often the chart opens them. You can filter by spot type or deal edge hands only (mixed hands and hands on a range boundary).
+  - **Scoring:** an answer is **correct** if the chart plays it at least 50% of the time, **acceptable** at 15–50% (a mixed hand), and **wrong** otherwise. Accuracy counts acceptable answers as half.
+  - **Spaced repetition:** a wrong hand comes back 3 deals later, and each correct answer on it doubles the gap until it passes 24.
+  - **Stats and shortcuts:** stats are saved per spot. Keys: F fold, C call, R raise, A all-in, Enter for the next hand.
