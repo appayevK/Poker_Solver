@@ -16,7 +16,7 @@
 //   raise means open / 3-bet / 4-bet depending on the spot; call in an RFI spot is a
 //   limp. Fold is whatever frequency is left over for each hand.
 
-import baseline from '../../data/charts/cash-6max-100bb.json';
+import baseline from '../../data/charts/cash-6max-100bb.json' with { type: 'json' };
 import { handClasses, parseRange, rangeToString, classIndex } from '../engine/ranges.js';
 import { comboWeights, comboIndex, CLASS_COMBOS } from '../engine/combos.js';
 import { parseCards } from '../engine/cards.js';

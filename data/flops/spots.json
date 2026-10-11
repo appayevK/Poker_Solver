@@ -1,0 +1,62 @@
+{
+  "chart": "baseline-6max-100bb",
+  "stack": 100,
+  "spots": [
+    {
+      "id": "srp-btn-bb",
+      "label": "SRP BTN vs BB",
+      "format": "cash",
+      "type": "SRP",
+      "ip": "BTN",
+      "oop": "BB",
+      "aggressor": "ip",
+      "preflop": "BTN opens, SB folds, BB calls",
+      "ranges": {
+        "ip": { "spot": "RFI:BTN", "action": "raise" },
+        "oop": { "spot": "vsOpen:BB:BTN", "action": "call" }
+      }
+    },
+    {
+      "id": "srp-co-bb",
+      "label": "SRP CO vs BB",
+      "format": "cash",
+      "type": "SRP",
+      "ip": "CO",
+      "oop": "BB",
+      "aggressor": "ip",
+      "preflop": "CO opens, BTN and SB fold, BB calls",
+      "ranges": {
+        "ip": { "spot": "RFI:CO", "action": "raise" },
+        "oop": { "spot": "vsOpen:BB:CO", "action": "call" }
+      }
+    },
+    {
+      "id": "3bp-sb-btn",
+      "label": "3BP SB vs BTN",
+      "format": "cash",
+      "type": "3BP",
+      "ip": "BTN",
+      "oop": "SB",
+      "aggressor": "oop",
+      "preflop": "BTN opens, SB 3-bets, BB folds, BTN calls",
+      "ranges": {
+        "ip": { "spot": "vs3bet:BTN:SB", "action": "call" },
+        "oop": { "spot": "vsOpen:SB:BTN", "action": "raise" }
+      }
+    },
+    {
+      "id": "3bp-bb-btn",
+      "label": "3BP BB vs BTN",
+      "format": "cash",
+      "type": "3BP",
+      "ip": "BTN",
+      "oop": "BB",
+      "aggressor": "oop",
+      "preflop": "BTN opens, SB folds, BB 3-bets, BTN calls",
+      "ranges": {
+        "ip": { "spot": "vs3bet:BTN:BB", "action": "call" },
+        "oop": { "spot": "vsOpen:BB:BTN", "action": "raise" }
+      }
+    }
+  ]
+}
