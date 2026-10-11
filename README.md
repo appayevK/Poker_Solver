@@ -13,6 +13,7 @@ For off-table study only. Do not use while playing.
 | **Equity / EV** | Hand/range equity, pot odds, required equity, fold equity, PKO bounty adjustment |
 | **ICM** | Malmuth-Harville $EV, risk premium, ICM + bounty decisions |
 | **Nash** | Push/fold equilibria (HU → 9-handed), chip EV / ICM / PKO modes |
+| **Flop** | Pre-solved flop strategies (TexasSolver) for common 6-max 100bb spots: explore any board, texture reports, flop trainer |
 
 ## Project layout
 
@@ -25,12 +26,16 @@ src/
   nash/                  Push/fold equilibrium solvers
   review/                Hand format, GG parser, manual entry, replayer, leak flags
   preflop/               Cash charts and trainer
-  ui/                    Range grid and one module per tab
+  flops/                 Flop library: canonical flops, textures, subset, spots, solver
+                         input and extraction, lookups, reports, flop trainer
+  ui/                    Range grid, mix grid and one module per tab
   workers/               Web Workers for heavy computation
   storage/               Persistence for hands, notes, ranges
   styles/                CSS
 data/                    Precomputed tables, chart presets, payout presets
+  flops/                 Flop subset, spots, solved flop data and index
 scripts/                 Build scripts for precomputed data
+  flops/                 TexasSolver pipeline (configs, solves, extraction, index)
 tests/                   Unit tests (Vitest) + hand-history fixtures
 docs/PLAN.md             Full build plan
 ```
@@ -43,6 +48,8 @@ npm run dev           # local dev server
 npm test              # run unit tests (~5 s)
 npm run bench         # hand evaluator throughput
 npm run build:equity  # regenerate data/preflop-equity-169.json (~70 s)
+npm run flops:bench   # one TexasSolver solve per flop spot + time / RAM estimate (needs TEXASSOLVER_PATH)
+npm run flops:all     # solve the whole flop library overnight (see phase 6 notes)
 ```
 
 `SLOW_TESTS=1 npm test` also runs the full 7-card category count (133,784,560 hands, ~7 s).
@@ -54,6 +61,8 @@ npm run build:equity  # regenerate data/preflop-equity-169.json (~70 s)
 3. ~~Nash push/fold (HU → multi-player → ICM / bounty modes)~~ **Done** (see phase 3 notes below)
 4. Hand review (manual entry → GG parser) — **pending**: waiting for real GGPoker exports in `tests/fixtures/hand-histories/`
 5. ~~Preflop charts and trainer~~ **Done** (see phase 5 notes below); leak flags and batch stats come with hand review (phase 4)
+6. ~~Pre-solved flop library and Flop tab~~ **Done** (see phase 6 notes below)
+7. Exploits and pool spots — planned
 
 See [docs/PLAN.md](docs/PLAN.md) for details.
 
@@ -124,3 +133,115 @@ See [docs/PLAN.md](docs/PLAN.md) for details.
   - **Scoring:** an answer is **correct** if the chart plays it at least 50% of the time, **acceptable** at 15–50% (a mixed hand), and **wrong** otherwise. Accuracy counts acceptable answers as half.
   - **Spaced repetition:** a wrong hand comes back 3 deals later, and each correct answer on it doubles the gap until it passes 24.
   - **Stats and shortcuts:** stats are saved per spot. Keys: F fold, C call, R raise, A all-in, Enter for the next hand.
+
+### Phase 6 notes
+
+- **TexasSolver** ([github.com/bupticybee/TexasSolver](https://github.com/bupticybee/TexasSolver)), v0.2.0, console build.
+  - **Licence:** AGPL-3.0. Free for personal study. Building it into other software or offering it as a service needs a commercial licence from its author.
+  - **Never bundled:** this repo contains none of its code or binaries. The scripts write plain-text input files, run your own copy of `console_solver`, and read the JSON it dumps. Only the extracted flop strategies are committed.
+  - **Install:** download the v0.2.0 release for your OS from its GitHub releases page and unzip it anywhere, e.g. `C:\TexasSolver` (the folder holding `console_solver.exe` and `resources\`).
+  - **`TEXASSOLVER_PATH`:** point the scripts at that folder once, then open a new terminal. Without it the scripts stop and explain what to set.
+    ```powershell
+    setx TEXASSOLVER_PATH "C:\TexasSolver"
+    ```
+  - **Syntax:** the input commands follow the release's own sample input and docs. Small test solves confirmed what the numbers mean:
+    - `bet 33` bets 33% of the pot;
+    - `raise 50` raises by 50% of the pot after calling (about 3x);
+    - the `allin` flag adds an all-in to every bet and raise of that player on that street, leads included;
+    - bets are rounded to whole chips, so the scripts use 10 chips per bb;
+    - amounts in the dump are the chips each action adds.
+- **Overnight run:** `npm run flops:all` makes the inputs, runs every solve, extracts the data and builds the index.
+  - **Resumable:** stop it with Ctrl+C or reboot, run it again, and it carries on from the solve that was in progress.
+  - **Benchmark first:** `npm run flops:bench` solves one flop per spot, then prints a time and RAM summary and an estimate for the whole library.
+  - **Steps on their own:**
+    - `node scripts/flops/make-configs.js [--spot id] [--limit n] [--threads n] [--tree laptop|full]`
+    - `node scripts/flops/run-solves.js [--spot id] [--limit n] [--dry-run] [--bench] [--max-gb n] [--force] [--retry-memory]`
+    - `npm run flops:extract`
+  - **Output:** the runner prints each solve's time, iterations, exploitability and peak RAM, with an ETA. Solver inputs, outputs and logs go to `solver-work/` (gitignored). Only the flop is dumped, so an SRP solve's output is about 150 KB.
+  - **Memory guard:** each solve's memory is checked every second.
+    - A solve over `--max-gb` (default: the lower of 3.5 GB and 75% of the RAM free at start) is stopped before the laptop starts swapping. It is logged as a memory failure and skipped on later runs unless you pass `--retry-memory`.
+    - Before each solve, the runner waits until there is enough free RAM for that spot's last measured peak.
+    - Threads default to all logical cores but two (30 on the laptop below), which keeps the machine responsive.
+- **Spots** (`data/flops/spots.json`): ranges come from the baseline chart and pot and stack from its sizes, so editing the chart changes the spots.
+
+  | Spot | OOP range | IP range | Pot / stack |
+  |---|---|---|---|
+  | SRP BTN vs BB | BB's call vs a BTN open | BTN open | 5.5 / 97.5 bb |
+  | SRP CO vs BB | BB's call vs a CO open | CO open | 5.5 / 97.5 bb |
+  | 3BP SB vs BTN | SB's 3-bet vs a BTN open | BTN's call vs the 3-bet | 21 / 90 bb |
+  | 3BP BB vs BTN | BB's 3-bet vs a BTN open | BTN's call vs the 3-bet | 20.5 / 90 bb |
+
+  A spot the chart can't describe gives its own stack, preflop money and ranges. This 30 bb MTT example is not solved; it shows the fields:
+  ```jsonc
+  {
+    "id": "mtt-btn-bb-30",
+    "label": "MTT 30bb BTN vs BB",
+    "format": "mtt",
+    "type": "SRP",
+    "ip": "BTN",
+    "oop": "BB",
+    "aggressor": "ip",          // the preflop raiser
+    "preflop": "BTN opens 2.1bb, SB folds, BB calls (1bb BB ante)",
+    "stack": 30,                // starting stack in bb (default: 100, as in the chart)
+    "invested": 2.1,            // each player's preflop money (default: from the chart's sizes)
+    "dead": 1.5,                // SB's blind + the BB ante: pot 2 × 2.1 + 1.5 = 5.7, stack 27.9
+    "ranges": {                 // range strings instead of chart spots (illustrative: use your own)
+      "ip": { "range": "22+,A2s+,K2s+,Q5s+,J7s+,T7s+,97s+,86s+,76s,65s,54s,A2o+,K9o+,QTo+,JTo" },
+      "oop": { "range": "22-TT,A2s-AJs,K2s+,Q2s+,J5s+,T6s+,96s+,85s+,75s+,64s+,54s,A2o-AJo,K7o+,Q9o+,J9o+,T9o,A5s:0.5" }
+    }
+  }
+  ```
+  To solve it, add it to `spots.json` and run `make-configs` and `run-solves` with `--spot mtt-btn-bb-30`, then `npm run flops:extract`.
+- **Bet tree** (`src/flops/tree-config.js`, the one place to change sizes). There are two presets, and `laptop` is the default:
+
+  | Preset | Flop | Turn | River |
+  |---|---|---|---|
+  | `laptop` | IP bets 33% or 75%. OOP bets 33% in 3-bet pots only. OOP check-raises 50%. IP raises 50% in 3-bet pots only (vs a c-bet or a check-raise) | bet 66%, all-in | bet 75%, all-in |
+  | `full` | as `laptop`, but IP can also raise a check-raise 50% in single-raised pots | bet 50% or 100%, raise 50%, all-in | as the turn |
+
+  - **Shared rules:** a bet or raise that would put in more than 67% of the remaining stack goes all-in, and TexasSolver allows at most 4 raises per street. In single-raised pots OOP never leads into the preflop raiser.
+  - **Solver settings:** a solve stops at 0.5% of the pot exploitability or 300 iterations, with isomorphism on. Only the flop is dumped: turn and river are solved underneath but not stored.
+  - **Memory** (peak of one solve, measured on SRP BTN vs BB, the widest ranges, flop AsTh5d):
+    - `full` needs 15.8 GB, which thrashes a 16 GB laptop. Use `--tree full` only with 32 GB or more.
+    - `laptop` needs 3.0 GB.
+    - 3-bet pots are much smaller: 0.6–0.8 GB with `laptop`.
+    - The thread count barely changes memory.
+  - **Benchmark** (`laptop`, 30 threads, Ryzen 9 8940HX laptop, flop AsTh5d):
+
+    | Spot | Time | Iterations | Exploitability | Peak RAM |
+    |---|---|---|---|---|
+    | SRP BTN vs BB | 3 min 30 s | 191 | 0.48% of the pot | 3.0 GB |
+    | SRP CO vs BB | 1 min 54 s | 191 | 0.48% | 1.6 GB |
+    | 3BP SB vs BTN | 31 s | 91 | 0.49% | 0.8 GB |
+    | 3BP BB vs BTN | 28 s | 101 | 0.46% | 0.6 GB |
+
+    The whole library (4 spots × 80 flops) takes about 8.5 hours. All 80 flops of 3BP BB vs BTN took 29 minutes (median 21 s per flop, exploitability 0.33–0.50% of the pot, peak RAM 0.7 GB).
+- **Flop subset** (`data/flops/subset.json`, `npm run flops:subset`):
+  - **Size:** the 22,100 flops reduce to 1,755 under suit relabelling. 80 representatives cover all 14 texture groups: A-high, K-high, Q/J-high, middle and low boards, each dry or wet, plus paired high, paired low, trips and monotone.
+  - **Choice:** each group gets representatives in proportion to its size, at least 3, or 1 for groups under 30 flops (low dry, trips). Within a group they are picked by k-medoids on texture features (high card, connectedness, suits, pairing), and every canonical flop is assigned to its closest representative.
+  - **Weights:** `weight` is the number of canonical flops a representative stands for (summing to 1,755). `raw` counts real flops (summing to 22,100), and that is what reports weight by.
+- **Lookups** (`src/flops/library.js`):
+  - `canonicalFlop(cards)` gives the canonical key and the suit permutation.
+  - `nearestFlop(spot, cards)` returns the exact canonical flop when it is solved. Otherwise it returns the nearest solved flop by texture distance, with suits mapped by role (flush suit to flush suit, then by highest card).
+  - `strategyFor(spot, cards, node)` gives per-combo and per-class frequencies in the real suits.
+  - `loadIndex()` and `loadFlop(spot, key)` load the data.
+- **Stored decisions:** OOP's first action, IP vs a check, OOP facing each IP bet, and in 3-bet pots IP facing OOP's 33% bet.
+  - Each one also stores how often it comes up (`line`).
+  - A decision that almost never happens has a mix the solver barely tested. An example is "BTN vs check" in 3BP BB vs BTN on ace-high boards, where BB bets every hand.
+  - The Flop tab flags these decisions, reports weight them down, and the trainer skips them.
+- **Data** (`data/flops/`):
+  - **Per flop:** one JSON file holds the combos per player, the range weights and the per-combo action frequencies, quantised to 0–255 and base64-encoded, plus solve info (iterations, exploitability, tree).
+  - **Sizes:** about 13 KB per flop for SRP BTN vs BB, 8 KB for SRP CO vs BB and 5–7 KB for 3-bet pots. `index.json` holds the summaries the tab needs, about 1.3 KB per flop. The full library comes to roughly 3 MB.
+  - **Build:** `vite.config.js` copies the folder to `dist/data/flops/`.
+  - **Committed so far:** all 80 flops of 3BP BB vs BTN plus the benchmark flop of each other spot (about 0.56 MB: 449 KB of flop files and a 105 KB index in total). Run `npm run flops:all` overnight to solve the rest.
+- **Flop tab:**
+  - **Explore:** type a board or pick a solved flop (grouped by texture) and get the exact or nearest solve. Choose a decision, then see the mix grid and per-combo detail in your board's suits.
+  - **Reports:** action frequencies by texture group, weighted by real flop counts and by how often the decision comes up, with plain-language takeaways.
+  - **Trainer:** deals a spot, flop, decision and hand from the library with random suits. Answers are scored like the preflop trainer (correct at 50%+, acceptable at 15–50%), with stats per spot and per texture. Keys 1–9 answer, Enter deals the next hand.
+  - Works at phone width.
+- **Caveats:**
+  - Results are only as good as the baseline preflop ranges they come from, and those are approximate, not solver output.
+  - The `laptop` tree has few turn and river sizes.
+  - A nearest-flop answer borrows a similar board's strategy.
+  - 0.5% of the pot is a study-grade solve, not a perfect one.
+  - The solves have no rake.
