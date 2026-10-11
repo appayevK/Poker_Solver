@@ -40,6 +40,15 @@
 - Leak flags: jam size vs effective stack, calls below required equity, big Nash deviations.
 - Notes, tags, later batch import with filters and stats.
 
+## 6. Pre-solved flop library (`src/flops`)
+- Solve a representative flop subset offline with TexasSolver (console version, run locally; never bundled) for a few common spots: SRP BTN vs BB, SRP CO vs BB, 3BP SB vs BTN, 3BP BB vs BTN. Ranges come from the baseline preflop chart.
+- Simple bet tree; turn and river are solved underneath but only flop decisions are stored and shown.
+- Flop tab: any board maps to its stored strategy (exact or nearest texture), 13×13 action-mix grid with per-combo detail, texture reports with plain-language takeaways, and a flop trainer.
+
+## 7. Exploits and pool spots
+- Exploit maths in the EV tab (how much to deviate when villain over-folds or over-calls).
+- "Pool" versions of key flop spots where villain is locked to a common low-stakes mistake, with a GTO / pool toggle in the Flop tab.
+
 ## Validation
 Each phase ends with checks against known values: AA vs KK ≈ 82%, published HU Nash charts, textbook ICM examples.
 
@@ -48,4 +57,4 @@ Each phase ends with checks against known values: AA vs KK ≈ 82%, published HU
 - Usual payout structures and bounty settings → `data/payouts/presets.json`
 
 ## Out of scope (for now)
-Postflop solving. If wanted later, bolt an open-source solver (e.g. postflop-solver) onto the review tab.
+Solving postflop spots in the browser. Phase 6 ships pre-solved flop data instead; turn and river strategies are not stored or shown.
