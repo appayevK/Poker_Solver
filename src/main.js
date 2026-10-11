@@ -4,6 +4,7 @@ import { renderRangesTab } from './ui/tabs/ranges-tab.js';
 import { renderEquityTab } from './ui/tabs/equity-tab.js';
 import { renderIcmTab } from './ui/tabs/icm-tab.js';
 import { renderNashTab } from './ui/tabs/nash-tab.js';
+import { renderFlopTab } from './ui/tabs/flop-tab.js';
 
 const tabs = {
   review: renderReviewTab,
@@ -11,6 +12,7 @@ const tabs = {
   equity: renderEquityTab,
   icm: renderIcmTab,
   nash: renderNashTab,
+  flop: renderFlopTab,
 };
 
 function show(name) {

@@ -634,3 +634,65 @@ button.icon { padding: 4px 10px; }
   .rt-main, .tr-layout { grid-template-columns: minmax(0, 1fr); }
   .card { font-size: 18px; }
 }
+
+/* ---------- Flop tab ---------- */
+
+:root {
+  --fa-check: #7d9b8c;
+  --fa-call: #3f9b5c;
+  --fa-fold: #6c8aa8;
+  --fa-bet-small: #e0886f;
+  --fa-bet-big: #c0392b;
+  --fa-raise: #8e44ad;
+  --fa-allin: #4a235a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fa-check: #5f7d6e;
+    --fa-call: #3d9a5c;
+    --fa-fold: #4f6d8a;
+    --fa-bet-small: #d0735a;
+    --fa-bet-big: #b03a2e;
+    --fa-raise: #9b59b6;
+    --fa-allin: #6c3483;
+  }
+}
+
+.flop-tab { max-width: 1100px; }
+.flop-tab > .icm-row .segmented { margin-bottom: 0; }
+.fl-explore { display: flex; flex-direction: column; gap: 14px; }
+.fl-main { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.fl-status { color: var(--muted); font-size: 14px; margin: 6px 0 10px; }
+.fl-nodes { display: flex; flex-wrap: wrap; gap: 6px; }
+.fl-nodes .pos-chip { min-width: 0; font-size: 13px; }
+.fl-nodes .pos-chip.rare { opacity: 0.6; }
+.fl-line { font-size: 13px; color: var(--muted); margin: 0 0 8px; }
+.fl-line.rare { color: var(--danger); }
+.fl-summary h3 { margin-bottom: 6px; }
+.fl-bar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--border); min-width: 80px; }
+.fl-bar span { display: block; height: 100%; }
+.fl-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 8px 0 12px; font-size: 13px; }
+.fl-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.mix-grid { width: 100%; max-width: 560px; }
+.mx-cell { border: none; padding: 0; font: inherit; color: inherit; font-size: clamp(8px, 2.5vw, 13px); cursor: pointer; }
+.mx-cell.empty { opacity: 0.35; cursor: default; }
+.mx-cell.hl { box-shadow: inset 0 0 0 3px var(--rg-sel); }
+.fl-combos .fl-combo { display: grid; grid-template-columns: auto minmax(60px, 1fr); gap: 4px 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.fl-combo .small { grid-column: 1 / -1; color: var(--muted); }
+.fl-combo-cards { display: inline-flex; gap: 4px; }
+.fl-combo-cards .card { width: 1.9em; height: 2.5em; font-size: 15px; }
+.fl-takeaways { margin: 0 0 12px; padding-left: 20px; }
+.fl-takeaways li { margin: 4px 0; }
+.fl-table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+.fl-table th, .fl-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+.fl-table th:first-child, .fl-table td:first-child { text-align: left; }
+.fl-table th { color: var(--muted); font-weight: 500; font-size: 12px; }
+.fl-table td:last-child { width: 30%; min-width: 120px; }
+.fl-table tr.total td { font-weight: 600; border-bottom: none; }
+.fl-table tr.rare td { color: var(--muted); }
+.fl-question .tr-story { margin-bottom: 8px; }
+
+@media (max-width: 760px) {
+  .fl-main { grid-template-columns: minmax(0, 1fr); }
+}
