@@ -11,7 +11,13 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "build:equity": "node scripts/build-equity-table.js",
-    "bench": "node scripts/bench-evaluator.js"
+    "bench": "node scripts/bench-evaluator.js",
+    "flops:subset": "node scripts/flops/build-subset.js",
+    "flops:configs": "node scripts/flops/make-configs.js",
+    "flops:bench": "node scripts/flops/make-configs.js --limit 1 && node scripts/flops/run-solves.js --bench",
+    "flops:solve": "node scripts/flops/run-solves.js",
+    "flops:extract": "node scripts/flops/extract.js && node scripts/flops/build-index.js",
+    "flops:all": "node scripts/flops/make-configs.js && node scripts/flops/run-solves.js && node scripts/flops/extract.js && node scripts/flops/build-index.js"
   },
   "devDependencies": {
     "vite": "^5.4.0",
