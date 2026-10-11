@@ -170,7 +170,8 @@ describe('solver input', () => {
       solver: FIXTURE_SOLVER,
       dumpPath: 'C:/Users/Admin/Poker_Solver/tests/fixtures/texassolver/small-flop-output.json',
     });
-    expect(text).toBe(readFileSync(`${FIXTURE}/small-flop-input.txt`, 'utf8'));
+    // Git may check the fixture out with CRLF line endings on Windows.
+    expect(text).toBe(readFileSync(`${FIXTURE}/small-flop-input.txt`, 'utf8').replace(/\r\n/g, '\n'));
   });
 
   it('builds the laptop tree: no donk bets or IP re-raises in SRPs, OOP c-bets in 3-bet pots', () => {
