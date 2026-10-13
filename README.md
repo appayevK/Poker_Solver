@@ -24,13 +24,14 @@ src/
   engine/                Shared maths: cards, evaluator, ranges, combos, equity
   calc/                  EV, ICM, PKO bounty maths
   nash/                  Push/fold equilibrium solvers
-  review/                Hand format, GG parser, manual entry, replayer, leak flags
+  review/                Hand format, GG parser, manual entry, replayer and analysis,
+                         default villain ranges, hand and session leak flags
   preflop/               Cash charts and trainer
   flops/                 Flop library: canonical flops, textures, subset, spots, solver
                          input and extraction, lookups, reports, flop trainer
   ui/                    Range grid, mix grid and one module per tab
   workers/               Web Workers for heavy computation
-  storage/               Persistence for hands, notes, ranges
+  storage/               localStorage helpers; IndexedDB hand library (hand-db.js)
   styles/                CSS
 data/                    Precomputed tables, chart presets, payout presets
   flops/                 Flop subset, spots, solved flop data and index
@@ -59,8 +60,8 @@ npm run flops:all     # solve the whole flop library overnight (see phase 6 note
 1. ~~Engine, range grid, equity calculator~~ **Done** (see phase 1 notes below)
 2. ~~EV calculator, ICM, PKO conversion~~ **Done** (see phase 2 notes below)
 3. ~~Nash push/fold (HU → multi-player → ICM / bounty modes)~~ **Done** (see phase 3 notes below)
-4. Hand review (manual entry → GG parser) — **pending**: waiting for real GGPoker exports in `tests/fixtures/hand-histories/`
-5. ~~Preflop charts and trainer~~ **Done** (see phase 5 notes below); leak flags and batch stats come with hand review (phase 4)
+4. ~~Hand review (GG parser, manual entry, replayer, leak flags)~~ **Done** (see phase 4 notes below); Rush & Cash and PKO still need a real export to test against
+5. ~~Preflop charts and trainer~~ **Done** (see phase 5 notes below)
 6. ~~Pre-solved flop library and Flop tab~~ **Done** (see phase 6 notes below)
 7. Exploits and pool spots — planned
 
@@ -99,7 +100,58 @@ See [docs/PLAN.md](docs/PLAN.md) for details.
   A class's EV for an action is then a sum of these values weighted by preflop-table equities and the card-removal matrix, so each iteration costs O(nodes × 169²). A split pot counts as half a win and half a loss: exact in chip EV, and a close approximation under ICM.
 - **Solver** (`src/nash/fictitious-play.js`): fictitious play. Each iteration plays the best response at every node, then moves the average strategy towards it. The step is 2/(t+2), so later responses carry linearly more weight. This reaches 1e-4 bb in a few hundred iterations, where classic 1/t averaging needs tens of thousands; `'1/t'` and a fixed step remain available as options. Exploitability is the best-response gain per player, and solving stops below 2e-4 bb (or the same fraction of the prize pool in ICM). Displayed ranges round hands to fully played or folded when their EV gap is clear of zero; the raw frequencies stay in `nodes`.
 - **Solve times** (Node 24, Ryzen 9 8940HX laptop): heads-up at 10 bb takes about 0.1 s and matches published Nash (SB jams 58%, BB calls 37%). 3-handed at 10 bb takes about 0.1 s, 6-handed at 15 bb about 0.4 s, and 9-handed at 15 bb about 1.4 s. In the browser, solves run in `src/workers/nash.worker.js` behind `solveNash()` (`src/workers/nash-client.js`), with progress and cancel. Solutions are cached in localStorage by a hash of the parameters (the 10 most recent), so a solved spot reopens instantly.
-- **`nashAction(solution, { seat, node, handClass })`** returns the Nash action, the jam or call frequency and the EV gap. The Nash tab's "Check my hand" uses it, and the hand-review phase will compare real decisions with it.
+- **`nashAction(solution, { seat, node, handClass })`** returns the Nash action, the jam or call frequency and the EV gap. The Nash tab's "Check my hand" uses it, and hand review compares real push/fold decisions with it.
+
+### Phase 4 notes
+
+- **Hand format** (`src/review/hand.js`): one `Hand` object for GG hands and manual entry.
+  - **Amounts:** whole numbers in the smallest unit (cents in $ games, chips in tournaments), so sums never drift. `hand.unit` converts them for display and `toBB` gives big blinds.
+  - **Actions:** each has the chips it adds (`amount`), the street total after it (`to`, the "raise to" figure) and `isAllIn`. Manual entry may give only one of the two, or an `allin` action; `createHand` fills in the rest.
+  - **Positions** are counted back from the button: BTN, SB, BB, then CO, HJ, UTG and so on. A label therefore always means the same number of players behind (5-handed 6-max is HJ, CO, BTN, SB, BB). Heads-up the button is the SB.
+  - **Also kept:** both boards when run twice, uncalled bets, amounts collected per run, rake and fees (jackpot, bingo, fortune, tax), EV cashout events, shown cards (one card when a folded player shows one), tournament info, notes, tags, flags and any lines the parser did not understand.
+  - **`validateHand`** checks that no card appears twice, that actions follow the betting rules and turn order, and that chips add up: contributions − uncalled = pot = collected + rake + fees. It returns a list of problems instead of throwing, so an odd hand can still be reviewed. The same rules (`legalActions`) drive manual entry.
+- **GG parser** (`src/review/gg-parser.js`): built against a real NL25 6-max export (19 hands, `tests/fixtures/hand-histories/cash-nl25-01.txt`).
+  - **Line types read:**
+    - the header, the table and button line, and seats (other players are hex ids, you are "Hero");
+    - blind posts, including a live big blind posted by a new player;
+    - folds, checks, calls, bets and raises ("raises X to Y", "and is all-in");
+    - streets, uncalled bets, shows (including a single card), showdowns and amounts collected;
+    - the summary pot line with rake and fees;
+    - run it twice (FIRST and SECOND streets, two showdowns, two boards);
+    - EV cashout ("Chooses to EV Cashout", and "Pays Cashout Risk", which comes out of the player's stack).
+  - **Checks:** every hand passes `validateHand`. Every player's stack at the end of a hand equals their stack at the start of the next one, apart from top-ups.
+  - **Not yet tested on real files:** tournament headers (level, blinds, ante), bounties in seat lines and Rush & Cash ids (`#RC…`) follow GG's layout, but there is no real export to test them against yet. Those hands carry a warning. Unknown lines go to `hand.unparsed` and the warnings.
+- **Replayer and analysis** (`src/review/replayer.js`, `src/review/analyse-hand.js`):
+  - **States:** `buildStates` gives one state per action: pot, stacks, amount to call, effective stack, SPR, pot odds and the bet being faced, plus the table and side pots after the action.
+  - **Facing a bet:** required equity, equity against the villain's range, call EV in bb and MDF. Equity is exact, or Monte Carlo with a fixed seed so numbers don't change between visits; cards known to be held by other players count as dead.
+  - **Betting or raising:** the fold frequency a pure bluff needs, and the bet or raise EV at a fold frequency you set. A preflop open shows only the steal numbers.
+  - **Tournament all-ins** (heads-up): ICM required equity, chip-EV required equity and the risk premium, from the hand's stacks and payouts, with bounties added in PKO. GG hand histories don't include payouts, so these appear once payouts are added.
+  - **Push/fold spots** (effective stack of 20 bb or less, folded to you or facing one all-in): the Nash action and the EV gap from the push/fold solver. Cash hands use chip EV; tournaments use ICM or PKO when payouts are known.
+- **Default villain ranges** (`src/review/default-ranges.js`): chosen by the villain's position and preflop line (open, call an open, 3-bet, call a 3-bet, 4-bet, limp, open-jam by stack depth, call an all-in, check in the big blind).
+  - Cash 6-max hands use the baseline chart's spot when it exists, so hand review and the Ranges tab agree. Other hands use a small table.
+  - They are only a starting point: after the flop you narrow them in the range grid, and the tab says so.
+- **Leak flags** (`src/review/leak-flags.js`). Thresholds are parameters:
+
+  | Flag | Fires when | Default |
+  |---|---|---|
+  | `oversizedJam` | you move all-in over a short stack for more than this multiple of what the short stack can put in, with players still to act behind | 2.5× |
+  | `callBelowRequired` | you call with equity this far below the required equity (ICM in tournaments) | 3 points |
+  | `foldedProfitable` | you fold when calling was worth at least this much and cleared the price by 5 points | +1 bb |
+  | `nashDeviation` | your push/fold action loses this much against Nash | 0.3 bb (0.1% of the prize pool under ICM) |
+
+  Postflop flags based on a default range are low severity and say so. Once you edit the range they count as medium or high.
+- **Session flags** (`src/review/session-leaks.js`). Both need at least 8 hands on each side:
+  - `tightAfterLoss`: your VPIP in the 20 hands after losing a pot of 30 bb or more drops 10 points or more compared with the 20 hands before.
+  - `aggressionAfterLoss`: bets and raises as a share of your bets, raises and calls rise 15 points after such a loss, or while you are down 30 bb or more over the last 20 hands.
+- **Hand library** (`src/storage/hand-db.js`): stored in IndexedDB, with a memory fallback in browsers that block it.
+  - **Import:** hands are deduplicated by hand id, so notes and tags survive a re-import.
+  - **Browsing:** filter by format, position, flagged, tag and text; sort by date or result.
+- **Review tab:**
+  - **Getting hands in:** paste text or choose .txt files, or use "New hand" for a live hand. Manual entry offers only the legal actions, with keys F, K, C, B, R and A.
+  - **Hand list:** shows each hand's result and flags. "Analyse these hands" runs the analysis over the filtered list.
+  - **Hand view:** a step-through replayer (arrow keys) with the action log. At each of your decisions there is an analysis panel with an editable villain range and a fold-frequency slider. Below it are the flags, notes and tags.
+  - **Session view:** VPIP, PFR, 3-bet, aggression and net bb by position, plus the session flags.
+  - Works at phone width.
 
 ### Phase 5 notes
 

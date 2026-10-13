@@ -53,7 +53,7 @@
 Each phase ends with checks against known values: AA vs KK ≈ 82%, published HU Nash charts, textbook ICM examples.
 
 ## Needed from Kerim
-- 5–10 GGPoker hand histories (cash + PKO) → `tests/fixtures/hand-histories/`
+- GGPoker hand histories → `tests/fixtures/hand-histories/`: a cash NL25 session is in; Rush & Cash and PKO exports are still needed
 - Usual payout structures and bounty settings → `data/payouts/presets.json`
 
 ## Out of scope (for now)
