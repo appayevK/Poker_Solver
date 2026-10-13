@@ -20,6 +20,7 @@
     "flops:all": "node scripts/flops/make-configs.js && node scripts/flops/run-solves.js && node scripts/flops/extract.js && node scripts/flops/build-index.js"
   },
   "devDependencies": {
+    "fake-indexeddb": "^6.2.5",
     "vite": "^5.4.0",
     "vitest": "^2.1.0"
   }
